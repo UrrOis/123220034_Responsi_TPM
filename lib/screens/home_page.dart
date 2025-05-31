@@ -1,256 +1,137 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/phone.dart';
 import '../services/api_service.dart';
+import '../util/shared_prefs.dart';
+import 'login_page.dart';
+import 'detail_page.dart';
+import 'create_page.dart';
+import 'edit_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
-
   @override
-  State<HomePage> createState() => _HomePageState();
+  _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  late Future<List<Phone>> _phonesFuture;
+  late Future<List<Smartphone>> _futurePhones;
+  String? nim;
 
   @override
   void initState() {
     super.initState();
-    _phonesFuture = APIService.getPhones();
+    _loadUser();
+    _futurePhones = ApiService.getSmartphones();
   }
 
-  Future<void> _refreshPhones() async {
+  Future<void> _loadUser() async {
+    final user = await SessionManager.getLogin();
     setState(() {
-      _phonesFuture = APIService.getPhones();
+      nim = user;
     });
   }
 
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
+  void _logout() async {
+    await SessionManager.logout();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
   }
 
-  Future<void> _deletePhone(String id) async {
-    try {
-      final success = await APIService.deletePhone(id);
-      if (!mounted) return;
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Phone deleted successfully')),
-        );
-        _refreshPhones();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to delete phone'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
-    }
+  void _refresh() {
+    setState(() {
+      _futurePhones = ApiService.getSmartphones();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Smartphone Manager'),
-        actions: [
-          IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
-        ],
+        title: Center(child: Text(nim == null ? 'Halo!' : 'Halo, $nim')),
+        actions: [IconButton(onPressed: _logout, icon: Icon(Icons.logout))],
       ),
-      body: RefreshIndicator(
-        onRefresh: _refreshPhones,
-        child: FutureBuilder<List<Phone>>(
-          future: _phonesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('Error: ${snapshot.error}'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _refreshPhones,
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              );
-            }
-
+      body: FutureBuilder<List<Smartphone>>(
+        future: _futurePhones,
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
             final phones = snapshot.data!;
-
-            if (phones.isEmpty) {
-              return const Center(child: Text('No smartphones available'));
-            }
-
             return ListView.builder(
-              padding: const EdgeInsets.all(8),
               itemCount: phones.length,
               itemBuilder: (context, index) {
                 final phone = phones[index];
-                final isFirstTen = index < 10;
-
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/detail',
-                        arguments: phone.id,
-                      );
-                    },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: Image.network(
-                            phone.image,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[200],
-                                child: const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.grey,
-                                  size: 50,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                phone.model,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                phone.brand,
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '\$${phone.price.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton.icon(
-                                onPressed:
-                                    isFirstTen
-                                        ? null
-                                        : () {
-                                          Navigator.pushNamed(
-                                            context,
-                                            '/edit',
-                                            arguments: phone,
-                                          );
-                                        },
-                                icon: const Icon(Icons.edit),
-                                label: const Text('Edit'),
-                              ),
-                              const SizedBox(width: 8),
-                              TextButton.icon(
-                                onPressed:
-                                    isFirstTen
-                                        ? null
-                                        : () {
-                                          showDialog(
-                                            context: context,
-                                            builder:
-                                                (context) => AlertDialog(
-                                                  title: const Text(
-                                                    'Delete Phone',
-                                                  ),
-                                                  content: const Text(
-                                                    'Are you sure you want to delete this phone?',
-                                                  ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () {
-                                                        Navigator.pop(context);
-                                                      },
-                                                      child: const Text(
-                                                        'Cancel',
-                                                      ),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () {
-                                                        Navigator.pop(context);
-                                                        _deletePhone(phone.id!);
-                                                      },
-                                                      child: const Text(
-                                                        'Delete',
-                                                        style: TextStyle(
-                                                          color: Colors.red,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                          );
-                                        },
-                                icon: const Icon(
-                                  Icons.delete,
-                                  color: Colors.red,
-                                ),
-                                label: const Text(
-                                  'Delete',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                return ListTile(
+                  leading: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.black, // Warna border
+                        width: 2, // Ketebalan border
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        8,
+                      ), // Radius untuk sudut yang lebih halus (optional)
+                    ),
+                    child: Image.network(
+                      phone.image,
+                      width:
+                          50, // Ukuran lebar gambar, sesuaikan dengan kebutuhan
+                      height: 50, // Menjaga agar gambar tetap proporsional
+                      fit:
+                          BoxFit
+                              .cover, // Agar gambar terisi dengan baik pada kontainer
                     ),
                   ),
+                  title: Text('${phone.brand} ${phone.model}'),
+                  subtitle: Text('Rp ${phone.price}'),
+                  onTap:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DetailPage(phone: phone),
+                        ),
+                      ),
+                  trailing:
+                      index >= 10
+                          ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit),
+                                onPressed:
+                                    () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (context) => EditPage(phone: phone),
+                                      ),
+                                    ).then((_) => _refresh()),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete),
+                                onPressed: () async {
+                                  await ApiService.deleteSmartphone(phone.id);
+                                  _refresh();
+                                },
+                              ),
+                            ],
+                          )
+                          : null,
                 );
               },
             );
-          },
-        ),
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          return Center(child: CircularProgressIndicator());
+        },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushNamed(context, '/create');
-        },
-        child: const Icon(Icons.add),
+        onPressed:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => CreatePage()),
+            ).then((_) => _refresh()),
+        child: Icon(Icons.add),
       ),
     );
   }

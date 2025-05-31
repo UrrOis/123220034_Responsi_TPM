@@ -2,74 +2,71 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/phone.dart';
 
-class APIService {
+class ApiService {
   static const String baseUrl =
       'https://tpm-api-responsi-e-f-872136705893.us-central1.run.app/api/v1';
 
-  static Future<List<Phone>> getPhones() async {
-    final url = Uri.parse('$baseUrl/phones');
+  static Future<List<Smartphone>> getSmartphones() async {
     try {
-      final response = await http.get(url);
+      final response = await http.get(
+        Uri.parse('$baseUrl/phones'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      print("Status Code: ${response.statusCode}");
+      print("Response Body: ${response.body}");
+
       if (response.statusCode == 200) {
-        List<dynamic> jsonList = json.decode(response.body);
-        return jsonList.map((json) => Phone.fromJson(json)).toList();
+        final decoded = json.decode(response.body);
+        final List<dynamic> data = decoded['data'];
+        return data.map((e) => Smartphone.fromJson(e)).toList();
       } else {
-        throw Exception('Failed to load phones');
+        throw Exception('Gagal memuat data. Status: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error fetching phones: $e');
+      print("ERROR PARSING: $e");
+      throw Exception("Format tidak valid atau bukan JSON");
     }
   }
 
-  static Future<Phone> getPhone(String id) async {
-    final url = Uri.parse('$baseUrl/phones/$id');
-    try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        return Phone.fromJson(json.decode(response.body));
-      } else {
-        throw Exception('Phone not found');
-      }
-    } catch (e) {
-      throw Exception('Error fetching phone: $e');
+  static Future<void> createSmartphone(Map<String, dynamic> body) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/phones'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode(body),
+    );
+    if (response.statusCode != 201) {
+      throw Exception('Gagal menambahkan data. Status: ${response.statusCode}');
     }
   }
 
-  static Future<bool> createPhone(Phone phone) async {
-    final url = Uri.parse('$baseUrl/phones');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(phone.toJson()),
-      );
-      return response.statusCode == 201;
-    } catch (e) {
-      throw Exception('Error creating phone: $e');
+  static Future<void> updateSmartphone(
+    int id,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/phones/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: json.encode(body),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Gagal memperbarui data. Status: ${response.statusCode}');
     }
   }
 
-  static Future<bool> updatePhone(String id, Phone phone) async {
-    final url = Uri.parse('$baseUrl/phones/$id');
-    try {
-      final response = await http.put(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(phone.toJson()),
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      throw Exception('Error updating phone: $e');
-    }
-  }
-
-  static Future<bool> deletePhone(String id) async {
-    final url = Uri.parse('$baseUrl/phones/$id');
-    try {
-      final response = await http.delete(url);
-      return response.statusCode == 200;
-    } catch (e) {
-      throw Exception('Error deleting phone: $e');
+  static Future<void> deleteSmartphone(int id) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/phones/$id'),
+      headers: {'Accept': 'application/json'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Gagal menghapus data. Status: ${response.statusCode}');
     }
   }
 }
